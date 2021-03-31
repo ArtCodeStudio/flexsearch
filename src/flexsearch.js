@@ -8,8 +8,6 @@
 
 "use strict";
 
-import "./serialize.js";
-import "./where.js";
 import Cache from "./cache.js";
 import Worker from "./worker.js";
 import presets from "./presets.js";
@@ -25,13 +23,13 @@ import {
     get_keys,
     create_object,
     create_object_array,
-    //replace,
+    replace,
     regex
 } from "./common.js";
 
 let id_counter = 0;
-export const global_lang = {};
-export const global_charset = {};
+const global_lang = {};
+const global_charset = {};
 
 /**
  * TODO: inlining them
@@ -80,7 +78,7 @@ export const global_charset = {};
  * @constructor
  */
 
-export default function FlexSearch(options){
+const FlexSearch = function(options){
 
     // if(PROFILER){
     //
@@ -116,6 +114,10 @@ export default function FlexSearch(options){
 
         return this["index"].length;
     });
+}
+
+FlexSearch["create"] = function(options){
+    return new FlexSearch(options)
 }
 
 /**
@@ -1762,6 +1764,375 @@ FlexSearch.prototype.destroy = function(){
     return this;
 };
 
+/**
+ * @param {!string} str
+ * @param {boolean|Array<string|RegExp>=} normalize
+ * @param {boolean|string|RegExp=} split
+ * @param {boolean=} _collapse
+ * @returns {string|Array<string>}
+ */
+FlexSearch.prototype.pipeline = function(str, normalize, split, _collapse){
+
+    if(str){
+
+        if(normalize && str){
+
+            str = replace(str, /** @type {Array<string|RegExp>} */ (normalize));
+        }
+
+        if(str && this.matcher){
+
+            str = replace(str, this.matcher);
+        }
+
+        if(this.stemmer && str.length > 1){
+
+            str = replace(str, this.stemmer);
+        }
+
+        if(_collapse && str.length > 1){
+
+            str = collapse(str);
+        }
+
+        if(str){
+
+            if(split || (split === "")){
+
+                const words = str.split(/** @type {string|RegExp} */ (split));
+
+                return this.filter ? filter(words, this.filter) : words;
+            }
+        }
+    }
+
+    return str;
+};
+
+if(SUPPORT_SERIALIZE){
+
+    /**
+     * TODO: also export settings?
+     * @param {Object<string, boolean>=} config
+     */
+
+    FlexSearch.prototype.export = function(config){
+
+        const serialize = !config || is_undefined(config["serialize"]) || config["serialize"];
+
+        let payload;
+
+        if(SUPPORT_DOCUMENT && this.doc){
+
+            const export_doc = !config || is_undefined(config["doc"]) || config["doc"];
+            const export_index = !config || is_undefined(config["index"]) || config["index"];
+
+            payload = [];
+
+            let i = 0;
+
+            if(export_index){
+
+                const keys = this.doc.keys;
+
+                for(; i < keys.length; i++){
+
+                    const idx = this.doc.index[keys[i]];
+
+                    payload[i] = [
+
+                        idx._map, idx._ctx, get_keys(idx._ids)
+                    ];
+                }
+            }
+
+            if(export_doc){
+
+                payload[i] = this._doc;
+            }
+        }
+        else{
+
+            payload = [
+
+                this._map,
+                this._ctx,
+                get_keys(this._ids)
+            ];
+        }
+
+        if(serialize){
+
+            payload = JSON.stringify(payload);
+        }
+
+        return payload;
+    };
+
+    FlexSearch.prototype.import = function(payload, config){
+
+        const serialize = !config || is_undefined(config["serialize"]) || config["serialize"];
+
+        if(serialize){
+
+            payload = JSON.parse(payload);
+        }
+
+        const ids = {};
+
+        if(SUPPORT_DOCUMENT && this.doc){
+
+            const import_doc = !config || is_undefined(config["doc"]) || config["doc"];
+            const import_index = !config || is_undefined(config["index"]) || config["index"];
+
+            let i = 0;
+
+            if(import_index){
+
+                const keys = this.doc.keys;
+                const length = keys.length;
+                const current = payload[0][2];
+
+                for(; i < current.length; i++){
+
+                    ids[current[i]] = 1;
+                }
+
+                for(i = 0; i < length; i++){
+
+                    const idx = this.doc.index[keys[i]];
+                    const item = payload[i];
+
+                    if(item){
+
+                        idx._map = item[0];
+                        idx._ctx = item[1];
+                        idx._ids = ids;
+                        // idx._doc = payload[length];
+                    }
+                }
+            }
+
+            if(import_doc){
+
+                this._doc = is_object(import_doc) ? import_doc : payload[i];
+            }
+        }
+        else{
+
+            const current = payload[2];
+
+            for(let i = 0; i < current.length; i++){
+
+                ids[current[i]] = 1;
+            }
+
+            this._map = payload[0];
+            this._ctx = payload[1];
+            this._ids = ids;
+        }
+    };
+}
+
+if(SUPPORT_DOCUMENT && SUPPORT_WHERE){
+
+    FlexSearch.prototype.find = function(key, value){
+
+        return this.where(key, value, 1)[0] || null;
+    };
+
+    /**
+     * @param key
+     * @param value
+     * @param limit
+     * @param {Array<Object>=} result
+     * @returns {Array<Object>}
+     */
+
+    FlexSearch.prototype.where = function(key, value, limit, result){
+
+        const doc = this._doc;
+        const results = [];
+
+        let count = 0;
+        let keys;
+        let keys_len;
+        let has_value;
+        let tree;
+        let tag_results;
+
+        if(is_object(key)){
+
+            limit || (limit = value);
+            keys = get_keys(key);
+            keys_len = keys.length;
+            has_value = false;
+
+            if((keys_len === 1) && (keys[0] === "id")){
+
+                return [doc[key["id"]]];
+            }
+
+            const tags = this._tags;
+
+            if(tags && !result){
+
+                for(let i = 0; i < tags.length; i++){
+
+                    const current_tag = tags[i];
+                    const current_where = key[current_tag];
+
+                    if(!is_undefined(current_where)){
+
+                        tag_results = this._tag[current_tag]["@" + current_where];
+                        //result = result.slice(0, limit && (limit < result.length) ? limit : result.length);
+
+                        if(--keys_len === 0){
+
+                            return tag_results;
+                        }
+
+                        keys.splice(keys.indexOf(current_tag), 1);
+
+                        // TODO: delete from original reference?
+                        delete key[current_tag];
+                        break;
+                    }
+                }
+            }
+
+            tree = new Array(keys_len);
+
+            for(let i = 0; i < keys_len; i++){
+
+                tree[i] = keys[i].split(":");
+            }
+        }
+        else if(is_function(key)){
+
+            const ids = result || get_keys(doc);
+            const length = ids.length;
+
+            for(let x = 0; x < length; x++){
+
+                const obj = doc[ids[x]];
+
+                if(key(obj)){
+
+                    results[count++] = obj;
+                }
+            }
+
+            return results;
+        }
+        else{
+
+            if(is_undefined(value)){
+
+                return [doc[key]];
+            }
+
+            if(key === "id"){
+
+                return [doc[value]];
+            }
+
+            keys = [key];
+            keys_len = 1;
+            tree = [key.split(":")];
+            has_value = true;
+        }
+
+        const ids = tag_results || result || get_keys(doc); // this._ids;
+        const length = ids.length;
+
+        for(let x = 0; x < length; x++){
+
+            const obj = tag_results ? ids[x] : doc[ids[x]];
+            let found = true;
+
+            for(let i = 0; i < keys_len; i++){
+
+                has_value || (value = key[keys[i]]);
+
+                const tree_cur = tree[i];
+                const tree_len = tree_cur.length;
+
+                let ref = obj;
+
+                if(tree_len > 1){
+
+                    for(let z = 0; z < tree_len; z++){
+
+                        ref = ref[tree_cur[z]];
+                    }
+                }
+                else{
+
+                    ref = ref[tree_cur[0]];
+                }
+
+                if(ref !== value){
+
+                    found = false;
+                    break;
+                }
+            }
+
+            if(found){
+
+                results[count++] = obj;
+
+                if(limit && (count === limit)){
+
+                    break;
+                }
+            }
+        }
+
+        return results;
+    };
+}
+
+if(SUPPORT_WORKER){
+
+    FlexSearch.prototype.worker_handler = function(id, query, result, limit, where, cursor, suggest){
+
+        if(this._task_completed !== this.worker){
+
+            this._task_result = this._task_result.concat(result);
+            this._task_completed++;
+
+            // TODO: sort results, return array of relevance [0...9] and apply in main thread
+
+            if(limit && (this._task_result.length >= limit)){
+
+                this._task_completed = this.worker;
+            }
+
+            if(this._task_completed === this.worker){
+
+                // this._task_result = intersect(this._task_result, where ? 0 : limit, cursor, suggest);
+
+                if(this.cache){
+
+                    this._cache.set(query, this._task_result);
+                }
+
+                if(this._current_callback){
+
+                    this._current_callback(this._task_result);
+                }
+
+                //this._task_completed = 0;
+                //this._task_result = [];
+            }
+        }
+
+        return this;
+    };
+}
+
 // ---------------------------------------------------------
 // Helpers
 
@@ -2567,3 +2938,5 @@ function intersect_3d(arrays, limit, suggest) {
     return result;
 }
 */
+
+export { FlexSearch, global_lang, global_charset }

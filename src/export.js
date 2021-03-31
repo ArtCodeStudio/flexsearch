@@ -1,4 +1,4 @@
-import FlexSearch from "./flexsearch.js";
+import { FlexSearch } from "./flexsearch.js";
 
 /** @export */
 FlexSearch.prototype.init;

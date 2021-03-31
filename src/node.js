@@ -1,4 +1,4 @@
-import { FlexSearch, global_charset, global_lang } from "./flexsearch.js";
+import { global_charset, global_lang, FlexSearch } from "./flexsearch.js";
 import charset_latin_advanced from "./lang/latin/advanced.js";
 import charset_latin_balance from "./lang/latin/balance.js";
 import charset_latin_default from "./lang/latin/default.js";
@@ -12,7 +12,6 @@ import lang_de from "./lang/de.js";
 import lang_en from "./lang/en.js";
 import lang_at from "./lang/at.js";
 import lang_us from "./lang/us.js";
-import "./export.js";
 
 if(SUPPORT_ENCODER === true || (SUPPORT_ENCODER && ((SUPPORT_ENCODER === "latin") || (SUPPORT_ENCODER.indexOf("latin:advanced") !== -1)))){
 
@@ -68,35 +67,6 @@ if(SUPPORT_LANG === true || (SUPPORT_LANG && SUPPORT_LANG.indexOf("us") !== -1))
     global_lang["us"] = lang_us;
 }
 
-(function(){
+console.log("FlexSearch intern", FlexSearch);
 
-    const name = "FlexSearch";
-    const root = this || window;
-    let prop;
-
-    // AMD (RequireJS)
-    if((prop = root["define"]) && prop["amd"]){
-
-        prop([], function(){
-
-            return FlexSearch;
-        });
-    }
-    // CommonJS (Node.js)
-    // else if(typeof exports === "object"){
-    //
-    //     /** @export */
-    //     module.exports = factory;
-    // }
-    else if(typeof root["exports"] === "object"){
-
-        /** @export */
-        root["module"].exports = FlexSearch;
-    }
-    // Global (window)
-    else{
-
-        root[name] = FlexSearch;
-    }
-
-}());
+export default FlexSearch;

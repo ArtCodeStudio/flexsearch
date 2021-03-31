@@ -1,4 +1,4 @@
-import FlexSearch from "./flexsearch.js";
+import { FlexSearch } from "./flexsearch.js";
 const worker_stack = {};
 const inline_supported = (typeof Blob !== "undefined") && (typeof URL !== "undefined") && URL.createObjectURL;
 
@@ -208,41 +208,3 @@ export function addWorker(id, core, options, callback){
     return thread;
 }
 
-if(SUPPORT_WORKER){
-
-    FlexSearch.prototype.worker_handler = function(id, query, result, limit, where, cursor, suggest){
-
-        if(this._task_completed !== this.worker){
-
-            this._task_result = this._task_result.concat(result);
-            this._task_completed++;
-
-            // TODO: sort results, return array of relevance [0...9] and apply in main thread
-
-            if(limit && (this._task_result.length >= limit)){
-
-                this._task_completed = this.worker;
-            }
-
-            if(this._task_completed === this.worker){
-
-                // this._task_result = intersect(this._task_result, where ? 0 : limit, cursor, suggest);
-
-                if(this.cache){
-
-                    this._cache.set(query, this._task_result);
-                }
-
-                if(this._current_callback){
-
-                    this._current_callback(this._task_result);
-                }
-
-                //this._task_completed = 0;
-                //this._task_result = [];
-            }
-        }
-
-        return this;
-    };
-}

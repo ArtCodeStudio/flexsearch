@@ -1,5 +1,3 @@
-import FlexSearch from "./flexsearch.js";
-
 /**
  * @param {*} val
  * @returns {boolean}
@@ -154,51 +152,7 @@ export function filter(words, map){
     return filtered;
 }
 
-/**
- * @param {!string} str
- * @param {boolean|Array<string|RegExp>=} normalize
- * @param {boolean|string|RegExp=} split
- * @param {boolean=} _collapse
- * @returns {string|Array<string>}
- */
 
-FlexSearch.prototype.pipeline = function(str, normalize, split, _collapse){
-
-    if(str){
-
-        if(normalize && str){
-
-            str = replace(str, /** @type {Array<string|RegExp>} */ (normalize));
-        }
-
-        if(str && this.matcher){
-
-            str = replace(str, this.matcher);
-        }
-
-        if(this.stemmer && str.length > 1){
-
-            str = replace(str, this.stemmer);
-        }
-
-        if(_collapse && str.length > 1){
-
-            str = collapse(str);
-        }
-
-        if(str){
-
-            if(split || (split === "")){
-
-                const words = str.split(/** @type {string|RegExp} */ (split));
-
-                return this.filter ? filter(words, this.filter) : words;
-            }
-        }
-    }
-
-    return str;
-};
 
 // export function pipeline(str, normalize, matcher, stemmer, split, _filter, _collapse){
 //

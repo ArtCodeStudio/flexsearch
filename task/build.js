@@ -106,9 +106,9 @@ let parameter = (function(opt){
     compilation_level: compilation_level || (release === "pre" ? "SIMPLE" : (release === "debug" ? "WHITESPACE" : "ADVANCED_OPTIMIZATIONS")), //"SIMPLE"
     use_types_for_optimization: true,
     //new_type_inf: true,
-    jscomp_warning: "newCheckTypes",
+    //jscomp_warning: "newCheckTypes",
     //jscomp_error: "strictCheckTypes",
-    jscomp_error: "newCheckTypesExtraChecks",
+    //jscomp_error: "newCheckTypesExtraChecks",
     generate_exports: true,
     export_local_property_definitions: true,
     language_in: "ECMASCRIPT6_STRICT",
@@ -136,8 +136,8 @@ let parameter = (function(opt){
     dependency_mode: "PRUNE_LEGACY",
     rewrite_polyfills: use_polyfill || false,
 
-    isolation_mode: "IIFE"
-    //output_wrapper: "(function(){%output%}());"
+    isolation_mode: "IIFE",
+    // output_wrapper: "(function(window || global){%output%}());",
 
     //formatting: "PRETTY_PRINT"
 });
